@@ -1,90 +1,140 @@
-const fs = require('fs');
+const Tour = require('../models/tourModel');
 
-const tours = JSON.parse(
-  fs.readFileSync(`${__dirname}/../dev-data/data/tours-simple.json`)
-);
-
-exports.checkBody = (req, res, next) => {
-  const { price, name } = req.body;
-
-  if (!price || !name) {
-    return res.status(400).json({
+exports.createTour = async (req, res) => {
+  try {
+    const newTour = await Tour.create(req.body);
+    res.status(201).json({
+      status: 'success',
+      data: {
+        tour: newTour
+      }
+    });
+  } catch (err) {
+    console.log(err);
+    res.status(400).json({
       status: 'fail',
-      message: 'The name and price is necessary'
+      message: err.message
     });
   }
-
-  next();
 };
 
-exports.checkTourId = (req, res, next, id) => {
-  const tour = tours.find(el => el.id === +id);
+exports.getAlltour = async (req, res) => {
+  try {
+    const { page, sort, limit, fields, ...rest } = req.query;
+    let queryStr = JSON.stringify(rest);
 
-  if (!tour) {
-    return res.status(404).json({
-      status: 'Fail',
-      message: 'Invalid Id'
-    });
-  }
+    //大於小於搜尋
+    queryStr = queryStr.replace(/\b(gte|gt|lte|lt)\b/g, match => `$${match}`);
+    queryStr = JSON.parse(queryStr);
 
-  next();
-};
+    let query = Tour.find(queryStr);
 
-exports.getAlltour = (req, res) => {
-  res.status(200).json({
-    status: 'success',
-    result: tours.length,
-    requestAt: req.requestTime,
-    data: {
-      tours
+    //排序搜尋
+    if (sort) {
+      const sortBy = sort.split(',').join(' ');
+      query = query.sort(sortBy);
+    } else {
+      query = query.sort('-createAt');
     }
-  });
+
+    // 部分搜尋
+    if (fields) {
+      const fieldsContent = fields.split(',').join(' ');
+      query = query.select(fieldsContent);
+    } else {
+      query = query.select('-__v');
+    }
+
+    // 頁碼 數量搜尋
+    const curPage = page * 1 || 1;
+    const curLimit = limit * 1 || 100;
+    const skip = (curPage - 1) * curLimit;
+
+    if (page) {
+      const numTours = await Tour.countDocuments();
+
+      if (skip > numTours) {
+        res.status(403).json({
+          status: 'fail',
+          message: 'This page is not exist'
+        });
+      }
+    }
+    query = query.skip(skip).limit(curLimit);
+    const tours = await query;
+
+    // 送出
+    res.status(200).json({
+      status: 'success',
+      result: tours.length,
+      data: {
+        tours
+      }
+    });
+  } catch (err) {
+    res.statu(404).json({
+      status: 'fail',
+      message: err.message
+    });
+  }
 };
 
-exports.getTour = (req, res) => {
+exports.getTour = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tour = await Tour.findById(id);
+    res.status(200).json({
+      status: 'success',
+      data: {
+        tour
+      }
+    });
+  } catch (err) {
+    res.statu(404).json({
+      status: 'fail',
+      message: err
+    });
+  }
+};
+
+exports.updateTour = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const updateTour = await Tour.findByIdAndUpdate(id, req.body, {
+      new: true,
+      runValidation: true
+    });
+
+    res.status(201).json({
+      status: 'success',
+      data: {
+        updateTour
+      }
+    });
+  } catch (err) {
+    res.statu(404).json({
+      status: 'fail',
+      message: err
+    });
+  }
+};
+
+exports.deleteTour = async (req, res) => {
   const { id } = req.params;
 
-  const tour = tours.find(el => el.id === +id);
-
-  res.status(200).json({
-    status: 'success',
-    data: {
-      tour
-    }
-  });
-};
-
-exports.updateTour = (req, res) => {
-  res.status(201).json({
-    status: 'success',
-    data: '<Update data in here...>'
-  });
-};
-
-exports.createTour = (req, res) => {
-  //   console.log(req.body);
-  const newId = tours[tours.length - 1].id + 1;
-  const newTour = { ...req.body, id: newId };
-  tours.push(newTour);
-  fs.writeFile(
-    `${__dirname}/../dev-data/data/tours-simple.json`,
-    JSON.stringify(tours),
-    err => {
-      if (err) return console.log(err);
-      res.status(201).json({
-        status: 'success',
-        result: tours.length,
-        data: {
-          tour: newTour
-        }
-      });
-    }
-  );
-};
-
-exports.deleteTour = (req, res) => {
-  res.status(204).json({
-    status: 'success',
-    data: null
-  });
+  try {
+    const tour = await Tour.findByIdAndDelete(id, {
+      strict: true
+    });
+    res.status(204).json({
+      status: 'success',
+      data: null
+    });
+  } catch (err) {
+    res.statu(404).json({
+      status: 'fail',
+      message: err
+    });
+  }
 };

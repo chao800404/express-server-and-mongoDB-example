@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "engines": {
-    "node": ">=8.3.0"
+    "node": ">=14.19.0"
   },
   "scripts": {
     "dev": "set NODE_ENV=development && nodemon server.js",
@@ -16,6 +16,7 @@
     "cheerio": "^1.0.0-rc.11",
     "dotenv": "^16.0.1",
     "express": "^4.18.1",
+    "mongoose": "^6.4.0",
     "morgan": "^1.10.0",
     "nodemon": "^2.0.16",
     "request": "^2.88.2"
