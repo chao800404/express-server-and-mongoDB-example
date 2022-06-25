@@ -3,6 +3,10 @@ const dotenv = require('dotenv');
 
 const app = require('./app');
 
+process.on('uncaughtException', err => {
+  console.log(err.name, err.message);
+});
+
 dotenv.config({ path: './config.env' });
 
 const DB = process.env.DATABASE_URL.replace(
@@ -14,6 +18,13 @@ mongoose.connect(DB).catch(err => console.log(err));
 
 const port = process.env.PORT || 3000;
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log('Server is run');
+});
+
+process.on('unhandledRejection', err => {
+  console.log(err.name, err.message);
+  server.close(() => {
+    process.exit(1);
+  });
 });

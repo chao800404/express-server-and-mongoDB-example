@@ -1,140 +1,167 @@
 const Tour = require('../models/tourModel');
+const APIFeatures = require('../utils/apiFeatures');
+const catchAsync = require('../utils/catchAsync');
+const AppError = require('../utils/appError');
 
-exports.createTour = async (req, res) => {
-  try {
-    const newTour = await Tour.create(req.body);
-    res.status(201).json({
-      status: 'success',
-      data: {
-        tour: newTour
-      }
-    });
-  } catch (err) {
-    console.log(err);
-    res.status(400).json({
-      status: 'fail',
-      message: err.message
-    });
-  }
+exports.aliasTopTours = (req, res, next) => {
+  req.query.limit = '5';
+  req.query.sort = '-ratingsAverage,price';
+  req.query.fields = 'name,price,ratingsAverage,summary,difficulty';
+
+  next();
 };
 
-exports.getAlltour = async (req, res) => {
-  try {
-    const { page, sort, limit, fields, ...rest } = req.query;
-    let queryStr = JSON.stringify(rest);
+exports.createTour = catchAsync(async (req, res, next) => {
+  const tour = await Tour.create(req.body);
 
-    //大於小於搜尋
-    queryStr = queryStr.replace(/\b(gte|gt|lte|lt)\b/g, match => `$${match}`);
-    queryStr = JSON.parse(queryStr);
-
-    let query = Tour.find(queryStr);
-
-    //排序搜尋
-    if (sort) {
-      const sortBy = sort.split(',').join(' ');
-      query = query.sort(sortBy);
-    } else {
-      query = query.sort('-createAt');
+  res.status(201).json({
+    status: 'success',
+    data: {
+      tour
     }
+  });
+});
 
-    // 部分搜尋
-    if (fields) {
-      const fieldsContent = fields.split(',').join(' ');
-      query = query.select(fieldsContent);
-    } else {
-      query = query.select('-__v');
+exports.getAlltour = catchAsync(async (req, res, next) => {
+  const features = new APIFeatures(Tour.find(), req.query)
+    .filter()
+    .limitFeilds()
+    .sort()
+    .pagination();
+  const tours = await features.query;
+
+  res.status(200).json({
+    status: 'success',
+    result: tours.length,
+    data: {
+      tours
     }
+  });
+});
 
-    // 頁碼 數量搜尋
-    const curPage = page * 1 || 1;
-    const curLimit = limit * 1 || 100;
-    const skip = (curPage - 1) * curLimit;
+exports.getTour = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+  const tour = await Tour.findById(id);
 
-    if (page) {
-      const numTours = await Tour.countDocuments();
+  if (!tour) {
+    return next(new AppError('This ID is not exist'));
+  }
 
-      if (skip > numTours) {
-        res.status(403).json({
-          status: 'fail',
-          message: 'This page is not exist'
-        });
-      }
+  res.status(200).json({
+    status: 'success',
+    data: {
+      tour
     }
-    query = query.skip(skip).limit(curLimit);
-    const tours = await query;
+  });
+});
 
-    // 送出
-    res.status(200).json({
-      status: 'success',
-      result: tours.length,
-      data: {
-        tours
-      }
-    });
-  } catch (err) {
-    res.statu(404).json({
-      status: 'fail',
-      message: err.message
-    });
-  }
-};
-
-exports.getTour = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const tour = await Tour.findById(id);
-    res.status(200).json({
-      status: 'success',
-      data: {
-        tour
-      }
-    });
-  } catch (err) {
-    res.statu(404).json({
-      status: 'fail',
-      message: err
-    });
-  }
-};
-
-exports.updateTour = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const updateTour = await Tour.findByIdAndUpdate(id, req.body, {
-      new: true,
-      runValidation: true
-    });
-
-    res.status(201).json({
-      status: 'success',
-      data: {
-        updateTour
-      }
-    });
-  } catch (err) {
-    res.statu(404).json({
-      status: 'fail',
-      message: err
-    });
-  }
-};
-
-exports.deleteTour = async (req, res) => {
+exports.updateTour = catchAsync(async (req, res, next) => {
   const { id } = req.params;
 
-  try {
-    const tour = await Tour.findByIdAndDelete(id, {
-      strict: true
-    });
-    res.status(204).json({
-      status: 'success',
-      data: null
-    });
-  } catch (err) {
-    res.statu(404).json({
-      status: 'fail',
-      message: err
-    });
+  const updateTour = await Tour.findByIdAndUpdate(id, req.body, {
+    new: true,
+    runValidation: true
+  });
+
+  if (!updateTour) {
+    return next(new AppError('This ID is not exist'));
   }
-};
+
+  res.status(201).json({
+    status: 'success',
+    data: {
+      updateTour
+    }
+  });
+});
+
+exports.getTourStats = catchAsync(async (req, res, next) => {
+  const stats = await Tour.aggregate([
+    {
+      $match: { ratingsAverage: { $gte: 4.5 } }
+    },
+    {
+      $group: {
+        _id: '$price',
+        numTour: { $sum: 1 },
+        numRating: { $sum: '$ratingsQuantity' },
+        avgRating: { $avg: '$ratingAverage' },
+        avgPrice: { $avg: '$price' },
+        minPrice: { $min: '$price' },
+        maxPrice: { $max: '$price' }
+      }
+    },
+    {
+      $sort: {
+        avgPrice: 1
+      }
+    }
+  ]);
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      stats
+    }
+  });
+});
+
+exports.getMonthlyPlan = catchAsync(async (req, res, next) => {
+  const year = await req.params.year;
+
+  const tours = await Tour.aggregate([
+    {
+      $unwind: '$startDates'
+    },
+    {
+      $match: {
+        startDates: {
+          $gte: new Date(`${year}-01-01`),
+          $lte: new Date(`${year}-12-31`)
+        }
+      }
+    },
+    {
+      $group: {
+        _id: { $month: '$startDates' },
+        numTours: { $sum: 1 },
+        tours: { $push: '$name' }
+      }
+    },
+    {
+      $addFields: { month: '$_id' }
+    },
+    {
+      $project: {
+        _id: 0
+      }
+    },
+    {
+      $sort: { numTours: -1 }
+    }
+  ]);
+
+  res.status(200).json({
+    status: 'success',
+    result: tours.length,
+    data: {
+      tours
+    }
+  });
+});
+
+exports.deleteTour = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+
+  const tour = await Tour.findByIdAndDelete(id, {
+    strict: true
+  });
+
+  if (!tour) {
+    return next(new AppError('This ID is not exist'));
+  }
+  res.status(204).json({
+    status: 'success',
+    data: null
+  });
+});
