@@ -4,10 +4,34 @@ const User = require('../models/userModel');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 const crypto = require('crypto');
+const cookie = require('cookie');
 
 const signToken = id => {
   return jwt.sign({ id }, process.env.JWT_SECRET_KEY, {
     expiresIn: process.env.EXPIRESIN
+  });
+};
+
+const createSendToken = (user, statusCode, res) => {
+  const token = signToken(user._id);
+
+  const setCookie = cookie.serialize('JWT', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    expires: new Date(
+      Date.now() + process.env.COOKIE_EXPIRES * 24 * 60 * 60 * 1000
+    )
+  });
+
+  res.setHeader('Set-Cookie', setCookie);
+  user.password = undefined;
+
+  res.status(statusCode).json({
+    status: 'success',
+    token,
+    data: {
+      user
+    }
   });
 };
 
@@ -21,16 +45,7 @@ exports.signUp = catchAsync(async (req, res, next) => {
     passwordConfirm,
     passwordChangeAt
   });
-
-  const token = signToken(user._id);
-
-  res.status(201).json({
-    status: 'success',
-    token,
-    data: {
-      user
-    }
-  });
+  createSendToken(user, 201, res);
 });
 
 exports.login = catchAsync(async (req, res, next) => {
@@ -46,12 +61,14 @@ exports.login = catchAsync(async (req, res, next) => {
     return next(new AppError('Incorrect email or password', 401));
   }
 
-  const token = signToken(user._id);
+  createSendToken(user, 200, res);
 
-  res.status(200).json({
-    status: 'success',
-    token
-  });
+  // const token = signToken(user._id);
+
+  // res.status(200).json({
+  //   status: 'success',
+  //   token
+  // });
 });
 
 exports.protect = catchAsync(async (req, res, next) => {
@@ -75,8 +92,6 @@ exports.protect = catchAsync(async (req, res, next) => {
       new AppError('User recently changed password! Please log in again', 401)
     );
   }
-
-  console.log(currentUser);
 
   req.user = currentUser;
   next();
@@ -158,10 +173,25 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
   user.passwordResetExpires = undefined;
   await user.save();
 
-  const newToken = signToken(user._id);
+  createSendToken(user, 200, res);
+});
 
-  res.status(200).json({
-    status: 'success',
-    token: newToken
-  });
+exports.updatePassword = catchAsync(async (req, res, next) => {
+  const { id } = req.user;
+
+  const user = await User.findById(id).select('+password');
+
+  if (
+    !user ||
+    !(await user.correctPassword(req.body.passwordCurrent, user.password))
+  ) {
+    return next(new AppError('Your current password is wrong', 400));
+  }
+
+  user.password = req.body.password;
+  user.passwordConfirm = req.body.passwordConfirm;
+
+  // 確保所有有關密碼類的都用save，因為update類型不會再次執行驗證
+  await user.save();
+  createSendToken(user, 200, res);
 });

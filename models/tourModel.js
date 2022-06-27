@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const slugify = require('slugify');
+// const User = require('../models/userModel');
 
 const tourSchema = new mongoose.Schema(
   {
@@ -23,7 +24,7 @@ const tourSchema = new mongoose.Schema(
       type: String,
       required: [true, 'A tour must have a difficulty option'],
       enum: {
-        values: ['easy , medium', 'difficult'],
+        values: ['easy', 'medium', 'difficult'],
         message: 'The difficulty option is either easy, medium , difficult'
       }
     },
@@ -70,7 +71,36 @@ const tourSchema = new mongoose.Schema(
     },
     startDates: [Date],
     secretTour: Boolean,
-    start: Date
+    start: Date,
+    startLocation: {
+      type: {
+        type: String,
+        default: 'Point',
+        enum: ['Point']
+      },
+      coordinates: [Number],
+      address: String,
+      description: String
+    },
+    locations: [
+      {
+        type: {
+          type: String,
+          default: 'Point',
+          enum: ['Point']
+        },
+        coordinates: [Number],
+        address: String,
+        description: String,
+        day: Number
+      }
+    ],
+    guides: [
+      {
+        type: mongoose.Types.ObjectId,
+        ref: 'User'
+      }
+    ]
   },
   {
     toJSON: { virtuals: true },
@@ -84,6 +114,13 @@ tourSchema.pre('save', function(next) {
   next();
 });
 
+// tourSchema.pre('save', async function(next) {
+//   const promiseGuides = this.guides.map(async id => await User.findById(id));
+//   this.guides = await Promise.all(promiseGuides);
+
+//   next();
+// });
+
 // tourSchema.post('save', function(doc, next) {
 //   console.log(doc);
 //   next();
@@ -96,6 +133,13 @@ tourSchema.pre(/^find/, function(next) {
   next();
 });
 
+tourSchema.pre(/^find/, function() {
+  this.populate({
+    path: 'guides',
+    select: '-__v -passwordChangedAt'
+  });
+});
+
 tourSchema.post(/^find/, function(docs, next) {
   console.log(`Query took ${Date.now() - this.start} milliseconds`);
   next();
@@ -106,8 +150,16 @@ tourSchema.pre('aggregate', function(next) {
   next();
 });
 
+//不會儲存至database中，虛擬的object元素列出
 tourSchema.virtual('durationWeeks').get(function() {
   return this.duration / 7;
+});
+
+// 因為不想儲存龐大的review 進tour，所以用虛擬生成的方式
+tourSchema.virtual('reviews', {
+  ref: 'Review',
+  foreignField: 'tour', // 對象 Review 中的tour做連接
+  localField: '_id' // 對映值 本端的id
 });
 
 module.exports = mongoose.model('Tour', tourSchema);

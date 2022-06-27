@@ -9,6 +9,7 @@ module.exports = async options => {
       pass: process.env.EMAIL_PASSWORD
     }
   });
+
   const option = {
     from: 'Chao schedtmann <hello@gmail.com>',
     to: `${options.email}`,
