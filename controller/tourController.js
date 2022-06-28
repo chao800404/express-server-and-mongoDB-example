@@ -18,6 +18,63 @@ exports.updateTour = handleFactory.updateOne(Tour);
 exports.deleteTour = handleFactory.deleteOne(Tour);
 exports.getTour = handleFactory.getOne(Tour, { path: 'reviews' });
 
+exports.getTourWithin = catchAsync(async (req, res, next) => {
+  const { distance, latlng, unit } = req.params;
+  const [lat, lng] = latlng.split(',').map(el => el.trim());
+
+  if (!lat || !lng) {
+    return next(new AppError('Pleaze provide latitude and longitude'));
+  }
+  // 地球半徑
+  const radius = unit === 'mi' ? distance / 3963.2 : distance / 6378.1;
+
+  const tours = await Tour.find({
+    startLocation: { $geoWithin: { $centerSphere: [[lng, lat], radius] } }
+  });
+
+  res.status(200).json({
+    status: 'success',
+    result: tours.length,
+    data: {
+      data: tours
+    }
+  });
+});
+
+exports.getDistances = catchAsync(async (req, res, next) => {
+  const { latlng, unit } = req.params;
+  const [lat, lng] = latlng.split(',').map(el => el.trim());
+
+  if (!lat || !lng) {
+    return next(new AppError('Pleaze provide latitude and longitude'));
+  }
+
+  const multiplier = unit === 'mi' ? 0.000621371 : 0.001;
+
+  const distances = await Tour.aggregate([
+    {
+      $geoNear: {
+        near: { type: 'Point', coordinates: [+lng, +lat] },
+        distanceField: 'distance',
+        distanceMultiplier: multiplier
+      }
+    },
+    {
+      $project: {
+        distance: 1,
+        name: 1
+      }
+    }
+  ]);
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      data: distances
+    }
+  });
+});
+
 // exports.getAlltour = catchAsync(async (req, res, next) => {
 //   const features = new APIFeatures(Tour.find(), req.query)
 //     .filter()

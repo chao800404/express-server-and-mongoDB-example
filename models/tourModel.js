@@ -32,7 +32,8 @@ const tourSchema = new mongoose.Schema(
       type: Number,
       default: 4.5,
       max: [5, 'Rating must be below 5.0'],
-      min: [1, 'Rating must be above 1.0']
+      min: [1, 'Rating must be above 1.0'],
+      set: val => Math.round(val * 10) / 10
     },
     ratingsQuantity: {
       type: Number,
@@ -108,6 +109,10 @@ const tourSchema = new mongoose.Schema(
   }
 );
 
+tourSchema.index({ price: 1, ratingsAverage: -1 });
+tourSchema.index({ slug: 1 });
+tourSchema.index({ startLocation: '2dsphere' });
+
 // 只有create 以及save時這中間件才會運作
 tourSchema.pre('save', function(next) {
   this.slug = slugify(this.name, { lower: true, trim: true });
@@ -145,10 +150,12 @@ tourSchema.post(/^find/, function(docs, next) {
   next();
 });
 
-tourSchema.pre('aggregate', function(next) {
-  this.pipeline().unshift({ $match: { secretTour: { $ne: true } } });
-  next();
-});
+// tourSchema.pre('aggregate', function(next) {
+//   this.pipeline().unshift({ $match: { secretTour: { $ne: true } } });
+
+//   console.log(this.pipeline());
+//   next();
+// });
 
 //不會儲存至database中，虛擬的object元素列出
 tourSchema.virtual('durationWeeks').get(function() {

@@ -35,6 +35,7 @@ exports.deleteMe = catchAsync(async (req, res) => {
   try {
     const { id } = req.user;
     await User.findByIdAndUpdate(id, { active: false });
+    console;
   } catch (error) {
     console.log(error);
   }
@@ -50,6 +51,11 @@ exports.createNewUser = (req, res) => {
     status: 'Fail',
     message: 'This route is not defined! Please use /signup instead'
   });
+};
+
+exports.getMe = (req, res, next) => {
+  req.params.id = req.user.id;
+  next();
 };
 
 exports.getAllUser = handleFactory.getAll(User);

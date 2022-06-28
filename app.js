@@ -1,6 +1,8 @@
 const express = require('express');
+const path = require('path');
 const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
+const viewRouter = require('./routes/viewRoutes');
 const userRouter = require('./routes/userRoutes');
 const tourRouter = require('./routes/tourRoutes');
 const reviewRouter = require('./routes/reviewRoutes');
@@ -12,6 +14,11 @@ const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
 
 const app = express();
+
+app.set('view engine', 'pug');
+app.set('views', path.join(__dirname, 'views'));
+
+app.use(express.static(path.join(__dirname, 'public')));
 
 if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('tiny'));
@@ -54,6 +61,7 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use('/', viewRouter);
 app.use('/api/v1/tours', tourRouter);
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/reviews', reviewRouter);
