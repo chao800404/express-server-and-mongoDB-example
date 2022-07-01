@@ -12,6 +12,7 @@ const helmet = require('helmet');
 const xss = require('xss-clean');
 const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
+const cors = require('cors');
 
 const cookieParser = require('cookie-parser');
 
@@ -30,6 +31,12 @@ const limiter = rateLimit({
   message:
     'Too many accounts created from this IP, please try again after an hour'
 });
+
+app.use(cors());
+
+app.options('*', cors());
+
+// app.options('/api/v1/tours/:id', cors());
 
 // 防止noSQL qurey 攻擊
 app.use(mongoSanitize());
