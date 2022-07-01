@@ -82,6 +82,7 @@ const fontSrcUrls = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 // 帶有更多安全性設定headers
 app.use(
   helmet({
+    crossOriginResourcePolicy: false,
     crossOriginEmbedderPolicy: false,
     contentSecurityPolicy: {
       directives: {
