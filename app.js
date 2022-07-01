@@ -80,25 +80,28 @@ const connectSrcUrls = [
 const fontSrcUrls = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
 // 帶有更多安全性設定headers
-app.use(
-  helmet({
-    crossOriginResourcePolicy: false,
-    crossOriginEmbedderPolicy: false,
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: [],
-        connectSrc: ["'self'", ...connectSrcUrls],
-        scriptSrc: ["'self'", ...scriptSrcUrls],
-        styleSrc: ["'self'", "'unsafe-inline'", ...styleSrcUrls],
-        workerSrc: ["'self'", 'blob:'],
-        frameSrc: ["'self'", 'https://*.stripe.com'],
-        objectSrc: [],
-        imgSrc: ["'self'", 'blob:', 'data:'],
-        fontSrc: ["'self'", ...fontSrcUrls]
-      }
-    }
-  })
-);
+// app.use(
+//   helmet({
+//     allowFrom: '*',
+//     crossOriginResourcePolicy: false,
+//     crossOriginEmbedderPolicy: false,
+//     contentSecurityPolicy: {
+//       directives: {
+//         defaultSrc: [],
+//         connectSrc: ["'self'", ...connectSrcUrls],
+//         scriptSrc: ["'self'", ...scriptSrcUrls],
+//         styleSrc: ["'self'", "'unsafe-inline'", ...styleSrcUrls],
+//         workerSrc: ["'self'", 'blob:'],
+//         frameSrc: ["'self'", 'https://*.stripe.com'],
+//         objectSrc: [],
+//         imgSrc: ["'self'", 'blob:', 'data:'],
+//         fontSrc: ["'self'", ...fontSrcUrls]
+//       }
+//     }
+//   })
+// );
+
+app.use(helmet());
 
 app.use(express.json({ limit: '10kb' }));
 
