@@ -20,7 +20,10 @@ const userSchema = new mongoose.Schema({
       message: 'The email format went wrong'
     }
   },
-  photo: String,
+  photo: {
+    type: String,
+    default: 'default.jpg'
+  },
   password: {
     type: String,
     required: [true, 'Please provide a password'],

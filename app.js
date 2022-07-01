@@ -13,10 +13,9 @@ const xss = require('xss-clean');
 const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
 
-const app = express();
+const cookieParser = require('cookie-parser');
 
-app.set('view engine', 'pug');
-app.set('views', path.join(__dirname, 'views'));
+const app = express();
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -50,13 +49,53 @@ app.use(
 );
 
 app.use('/api', limiter);
+app.use(cookieParser());
+
+const scriptSrcUrls = [
+  'https://api.tiles.mapbox.com/',
+  'https://api.mapbox.com/',
+  'https://*.stripe.com/',
+  'https://js.stripe.com/',
+  'https://cdn.jsdelivr.net'
+];
+const styleSrcUrls = [
+  'https://api.mapbox.com/',
+  'https://api.tiles.mapbox.com/',
+  'https://fonts.googleapis.com/'
+];
+const connectSrcUrls = [
+  'https://api.mapbox.com/',
+  'https://a.tiles.mapbox.com/',
+  'https://b.tiles.mapbox.com/',
+  'https://events.mapbox.com/',
+  'https://bundle.js:*'
+];
+const fontSrcUrls = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
 // 帶有更多安全性設定headers
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: [],
+        connectSrc: ["'self'", ...connectSrcUrls],
+        scriptSrc: ["'self'", ...scriptSrcUrls],
+        styleSrc: ["'self'", "'unsafe-inline'", ...styleSrcUrls],
+        workerSrc: ["'self'", 'blob:'],
+        frameSrc: ["'self'", 'https://*.stripe.com'],
+        objectSrc: [],
+        imgSrc: ["'self'", 'blob:', 'data:'],
+        fontSrc: ["'self'", ...fontSrcUrls]
+      }
+    }
+  })
+);
 
 app.use(express.json({ limit: '10kb' }));
 
 app.use((req, res, next) => {
+  // console.log(req.cookies);
   req.requestTime = new Date().toISOString();
   next();
 });
@@ -65,6 +104,8 @@ app.use('/', viewRouter);
 app.use('/api/v1/tours', tourRouter);
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/reviews', reviewRouter);
+app.set('view engine', 'pug');
+app.set('views', path.join(__dirname, 'views'));
 
 app.all('*', (req, res, next) => {
   // const err = new Error(`Cant't find ${req.originalUrl} on this server!`);

@@ -1,12 +1,20 @@
 doctype html 
 html 
+
   head
-    meta(name='viewport' content='width=device-width, initial-scale=1.0')
-    meta(charset='UTF-8')
-    link(rel ='stylesheet' href='css/style.css')
-    link(rel='shortcut icon' type='image/png' href='img/favicon.png')
-    link(href='https://fonts.googleapis.com/css?family=Lato:300,300i,700' rel='stylesheet')
-    title Natours | #{title}
+    block head
+      meta(name='viewport' content='width=device-width, initial-scale=1.0')
+      meta(charset='UTF-8')
+      link(rel ='stylesheet' href='/css/style.css')
+      link(rel='shortcut icon' type='image/png' href='img/favicon.png')
+      link(href='https://fonts.googleapis.com/css?family=Lato:300,300i,700' rel='stylesheet')
+      script(defer type="module" src='/js/mapbox.js')
+      script(defer type="module" src='/js/login.js')
+      script(defer type="module" src='/js/logout.js')
+       script(defer type="module" src='/js/updateSettings.js')
+      script(src='https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js')
+
+      title Natours | #{title}
     
   body 
 

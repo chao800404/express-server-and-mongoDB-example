@@ -1,10 +1,12 @@
 const jwt = require('jsonwebtoken');
-const sendEmail = require('../utils/email');
+const Email = require('../utils/email');
 const User = require('../models/userModel');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 const crypto = require('crypto');
 const cookie = require('cookie');
+
+const MAX_AGE = 30 * 24 * 60 * 60;
 
 const signToken = id => {
   return jwt.sign({ id }, process.env.JWT_SECRET_KEY, {
@@ -17,15 +19,15 @@ const createSendToken = (user, statusCode, res) => {
 
   const setCookie = cookie.serialize('JWT', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    expires: new Date(
-      Date.now() + process.env.COOKIE_EXPIRES * 24 * 60 * 60 * 1000
-    )
+    maxAge: MAX_AGE,
+    expires: new Date(Date.now() + MAX_AGE * 1000),
+    path: '/',
+    secure: process.env.NODE_ENV === 'production'
   });
 
-  res.setHeader('Set-Cookie', setCookie);
   user.password = undefined;
 
+  res.setHeader('Set-Cookie', setCookie);
   res.status(statusCode).json({
     status: 'success',
     token,
@@ -45,6 +47,9 @@ exports.signUp = catchAsync(async (req, res, next) => {
     passwordConfirm,
     passwordChangeAt
   });
+
+  const url = `${req.protocol}://${req.get('host')}/me`;
+  await new Email(user, url).sendWelcome();
   createSendToken(user, 201, res);
 });
 
@@ -62,18 +67,26 @@ exports.login = catchAsync(async (req, res, next) => {
   }
 
   createSendToken(user, 200, res);
-
-  // const token = signToken(user._id);
-
-  // res.status(200).json({
-  //   status: 'success',
-  //   token
-  // });
 });
+
+exports.logout = async (req, res) => {
+  const setCookie = cookie.serialize('JWT', '', {
+    httpOnly: true,
+    maxAge: -1,
+    path: '/'
+  });
+
+  res.setHeader('Set-Cookie', setCookie);
+  res.status(200).json({
+    status: 'success'
+  });
+};
 
 exports.protect = catchAsync(async (req, res, next) => {
   const { authorization } = req.headers;
-  const token = authorization?.split(' ')[1];
+  const token = authorization
+    ? authorization.token.split(' ')[1]
+    : req.cookies.JWT;
 
   if (!token) {
     return next(new AppError('You are not logged in! Please log in', 401));
@@ -96,6 +109,22 @@ exports.protect = catchAsync(async (req, res, next) => {
 
   req.user = currentUser;
   res.locals.user = currentUser;
+
+  next();
+});
+
+exports.isLoggedIn = catchAsync(async (req, res, next) => {
+  const token = req.cookies.JWT;
+
+  if (token) {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+    const currentUser = await User.findById(decoded.id);
+
+    if (!currentUser || currentUser.changedPasswordAfter(decoded.iat)) {
+      return next();
+    }
+    res.locals.user = currentUser;
+  }
 
   next();
 });
@@ -125,18 +154,12 @@ exports.forgotPassword = catchAsync(async (req, res, next) => {
   // 不進行驗證 validateBeforeSave
   await user.save({ validateBeforeSave: false });
 
-  const resetURL = `${req.protocol}://${req.get(
-    'host'
-  )}/api/v1/users/reset-password/${resetToken}`;
-
-  const message = `Forgot your password? Submit a PATCH request with your new password and passwordConfirm to ${resetURL}\n If you didn't forgot your password, Please ignore this email`;
-
   try {
-    await sendEmail({
-      email: user.email,
-      subject: 'Your password reset token (valid for 10 min)',
-      message
-    });
+    const resetURL = `${req.protocol}://${req.get(
+      'host'
+    )}/api/v1/users/reset-password/${resetToken}`;
+    await new Email(user, resetURL).sendPasswordReset();
+
     res.status(200).json({
       status: 'success',
       message: 'Token send to email'
