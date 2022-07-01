@@ -33,9 +33,9 @@ const limiter = rateLimit({
 });
 
 app.use(cors());
-
 app.options('*', cors());
 
+// 也能夠設置特定路線
 // app.options('/api/v1/tours/:id', cors());
 
 // 防止noSQL qurey 攻擊
